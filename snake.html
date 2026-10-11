@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--
+  ═══════════ لا تعدّل هذا التعليق ═══════════
+  الملف: games/snake.html — لعبة «الثعبان» (رمزها في السجل: snake).
+  - صفحة مستقلة تعمل وحدها بلا خادم وبلا اتصال. لا روابط لبقية الموقع ولا روابط خارجية، وزر 🎮 يرجع لبوابة الألعاب فقط.
+  - الستايل: الاحتياطي داخلها (fallback، ألوانه متغيرات --g-*)، ثم ستايل games من share يغيّر الألوان والخط لكل الألعاب الجديدة معاً، ثم ستايل اللعبة نفسها.
+  - الاسم: يُقرأ من بوابة الألعاب (game.name)، ولا يُسأل عنه إلا إذا فُتحت اللعبة وحدها بلا اسم.
+  - السجل: كل جولة: score = الفواكه التي أكلها، level 1 سهل (الجدار يوصله للجهة الثانية)، 2 عادي، 3 سريع، result «12 فاكهة».
+  ═══════════════════════════════════════════
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#6a3fd0">
+<title>الثعبان</title>
+<style id="fallback">
+:root{
+  --g-bg:#fbeef6; --g-bg2:#efe6ff; --g-ink:#3a2463; --g-sub:#7a6a98; --g-card:#ffffff; --g-line:#eadff7;
+  --g-accent:#6a3fd0; --g-accent-d:#4a2a9a; --g-pink:#ff7aa8; --g-pink-d:#d9507f;
+  --g-ok:#22b067; --g-ok-d:#168a4f; --g-bad:#ef4b5f; --g-bad-d:#b9293b; --g-warn:#ffc233; --g-warn-d:#c99100;
+  --g-font:Tahoma,"Segoe UI",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{font-family:var(--g-font);color:var(--g-ink);background:linear-gradient(180deg,var(--g-bg),var(--g-bg2));background-attachment:fixed;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+button{font-family:inherit;color:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--g-accent);outline-offset:2px}
+.g-app{max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding:8px 14px 18px;padding-top:max(8px,env(safe-area-inset-top))}
+.g-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.g-top h1{flex:1;margin:0;font-size:22px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-ic{width:44px;height:44px;flex:none;border:0;border-radius:14px;background:var(--g-card);box-shadow:0 3px 0 var(--g-line);font-size:20px;display:grid;place-items:center;cursor:pointer;text-decoration:none;color:var(--g-ink)}
+.g-ic:active{transform:translateY(2px);box-shadow:0 1px 0 var(--g-line)}
+.g-who{max-width:110px;height:44px;flex:none;border:0;border-radius:14px;background:var(--g-card);box-shadow:0 3px 0 var(--g-line);font-size:15px;font-weight:700;padding:0 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-card{background:var(--g-card);border:2px solid var(--g-line);border-radius:22px;padding:16px;box-shadow:0 5px 0 var(--g-line)}
+.g-btn{display:block;width:100%;min-height:56px;border:0;border-radius:18px;background:var(--g-accent);color:#fff;font-size:20px;font-weight:700;box-shadow:0 5px 0 var(--g-accent-d);cursor:pointer;margin-top:12px;padding:8px 14px}
+.g-btn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--g-accent-d)}
+.g-btn.soft{background:var(--g-card);color:var(--g-ink);box-shadow:0 5px 0 var(--g-line);border:2px solid var(--g-line)}
+.g-btn.soft:active{box-shadow:0 1px 0 var(--g-line)}
+.g-btn.warn{background:var(--g-warn);color:#3d2a00;box-shadow:0 5px 0 var(--g-warn-d)}
+.g-btn.warn:active{box-shadow:0 1px 0 var(--g-warn-d)}
+.g-btn:disabled{opacity:.45;cursor:default;transform:none}
+.g-opts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.g-opts button{flex:1 1 28%;min-height:66px;border:3px solid var(--g-line);background:var(--g-card);border-radius:18px;font-size:18px;font-weight:700;cursor:pointer;padding:6px 4px}
+.g-opts button small{display:block;font-size:13px;color:var(--g-sub);font-weight:400;margin-top:2px}
+.g-opts button.sel{border-color:var(--g-accent);background:var(--g-accent);color:#fff}
+.g-opts button.sel small{color:#fff}
+.g-scr{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(40,20,70,.55);z-index:30;overflow-y:auto}
+.g-scr.on{display:flex}
+.g-scr.full{background:linear-gradient(180deg,var(--g-bg),var(--g-bg2))}
+.g-box{width:100%;max-width:400px;text-align:center;background:var(--g-card);border-radius:26px;padding:22px 18px;box-shadow:0 8px 0 var(--g-line);margin:auto}
+.g-big{font-size:72px;line-height:1.1}
+.g-box h2{margin:6px 0;font-size:28px}
+.g-box p{margin:6px 0;color:var(--g-sub);font-size:17px;line-height:1.6}
+.g-box label{display:block;font-size:18px;font-weight:700;margin:14px 0 6px}
+.g-hi{font-size:18px;font-weight:700;color:var(--g-accent);min-height:1.4em}
+.g-in{width:100%;font:inherit;font-size:22px;text-align:center;padding:12px;border:3px solid var(--g-line);border-radius:16px;background:#fff;color:#2a1d48}
+.g-recent{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0}
+.g-recent button{font:inherit;font-size:16px;border:2px solid var(--g-line);background:var(--g-bg2);border-radius:20px;padding:6px 14px;cursor:pointer}
+.g-score{font-size:56px;font-weight:700;color:var(--g-accent);line-height:1.2}
+.g-best{font-size:16px;color:var(--g-sub)}
+.g-new{display:inline-block;background:var(--g-warn);color:#3d2a00;border-radius:12px;padding:2px 10px;font-weight:700;margin-top:4px}
+.g-dl{display:block;margin-top:16px;font-size:15px;color:var(--g-sub);text-decoration:underline}
+.g-dpad{display:grid;grid-template-columns:repeat(3,64px);grid-template-areas:". u ." "l d r";gap:8px;justify-content:center;margin-top:10px;direction:ltr}
+.g-dpad button{height:58px;border:0;border-radius:16px;background:var(--g-card);box-shadow:0 4px 0 var(--g-line);font-size:26px;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.g-dpad button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--g-line)}
+.g-dpad .u{grid-area:u}.g-dpad .l{grid-area:l}.g-dpad .d{grid-area:d}.g-dpad .r{grid-area:r}
+#g-fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;display:none}
+@keyframes g-pop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+@keyframes g-shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.g-popin{animation:g-pop .45s ease both}
+.g-shake{animation:g-shake .4s}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<link rel="stylesheet" href="/styles/games/style.css" onerror="this.remove()">
+<style id="page-style">
+.hud{display:flex;gap:8px;margin-bottom:8px}
+.hud .sc{flex:1;background:var(--g-card);border:2px solid var(--g-line);border-radius:16px;text-align:center;padding:4px}
+.hud b{display:block;font-size:26px;line-height:1.2}
+.hud span{font-size:13px;color:var(--g-sub)}
+.board{width:min(100%,62vh,440px);margin:0 auto;position:relative}
+#cv{display:block;width:100%;aspect-ratio:1;border-radius:18px;box-shadow:0 5px 0 var(--g-line);touch-action:none;background:var(--g-card)}
+.msg{text-align:center;font-size:18px;font-weight:700;min-height:1.5em;margin:8px 0 0}
+</style>
+</head>
+<body data-no-site-header="1">
+<div class="g-app">
+  <header class="g-top">
+    <a class="g-ic" href="./" aria-label="الألعاب">🎮</a>
+    <h1>الثعبان</h1>
+    <button class="g-ic" id="g-sound" aria-label="الصوت">🔊</button>
+    <button class="g-who" id="g-who" aria-label="تغيير الاسم">مين يلعب؟</button>
+  </header>
+<div class="hud">
+    <div class="sc"><b id="sScore">0</b><span>🍎 أكلت</span></div>
+    <div class="sc"><b id="sBest">-</b><span>أفضل نتيجة</span></div>
+  </div>
+  <div class="board"><canvas id="cv" aria-label="لوحة الثعبان"></canvas></div>
+  <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  <div class="g-dpad" id="dpad">
+    <button class="u" data-d="up" aria-label="فوق">⬆️</button>
+    <button class="l" data-d="left" aria-label="يسار">⬅️</button>
+    <button class="d" data-d="down" aria-label="تحت">⬇️</button>
+    <button class="r" data-d="right" aria-label="يمين">➡️</button>
+  </div>
+  <button class="g-btn soft" id="menu">غيّر الإعدادات ⚙️</button>
+
+  <div class="g-scr full on" id="start">
+    <div class="g-box">
+      <div class="g-big">🐍🍎</div>
+      <h2>الثعبان</h2>
+      <div class="g-hi" id="g-hi"></div>
+      <p>كل الفواكه والثعبان يطول! لا تصدم بنفسك. وجّهه بالأسهم أو اسحب بإصبعك على اللوحة.</p>
+      <label>المستوى:</label>
+      <div class="g-opts" id="lvl">
+        <button data-v="1">🐢 سهل<small>الجدار يوديك للجهة الثانية</small></button>
+        <button data-v="2">🐍 عادي<small>الجدار يوقفك</small></button>
+        <button data-v="3">⚡ سريع<small>للأبطال</small></button>
+      </div>
+      <button class="g-btn warn" id="go">يلا نلعب! 🚀</button>
+    </div>
+  </div>
+</div>
+<div class="g-scr" id="g-res" role="dialog" aria-modal="true" aria-labelledby="g-res-t">
+  <div class="g-box">
+    <div class="g-big g-popin" id="g-res-e"></div>
+    <h2 id="g-res-t"></h2>
+    <p id="g-res-s"></p>
+    <div class="g-score" id="g-res-n"></div>
+    <div class="g-best" id="g-res-b"></div>
+    <button class="g-btn warn" id="g-res-again">العب مرة ثانية 🔁</button>
+    <button class="g-btn soft" id="g-res-menu">غيّر الإعدادات ⚙️</button>
+  </div>
+</div>
+<div class="g-scr full" id="g-name" role="dialog" aria-modal="true" aria-labelledby="g-name-t">
+  <div class="g-box">
+    <div class="g-big">👋</div>
+    <h2 id="g-name-t">مين يلعب؟</h2>
+    <p>اكتب اسمك عشان تنحسب نتيجتك</p>
+    <div class="g-recent" id="g-recent"></div>
+    <input class="g-in" id="g-name-in" maxlength="30" placeholder="اسمك" autocomplete="off">
+    <button class="g-btn" id="g-name-ok">يلا 🚀</button>
+  </div>
+</div>
+<canvas id="g-fx"></canvas>
+<script>
+/* أدوات مشتركة داخل اللعبة: الاسم، والصوت، والاحتفال، وأفضل نتيجة، والسجل. كلها تعمل بلا خادم وتتجاوز أي عطل بصمت. */
+var G = (function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var reduce = false;
+  try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) {}
+  function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function clean(n) { return String(n || "").replace(/[<>\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 30); }
+
+  /* الاسم: نفس الاسم المحفوظ من بوابة الألعاب، فلا يُسأل عنه مرة ثانية */
+  function name() { return clean(get("game.name")); }
+  function recent() { try { var r = JSON.parse(get("game.recentNames") || "[]"); return Array.isArray(r) ? r : []; } catch (e) { return []; } }
+  function setName(n) {
+    n = clean(n); if (!n) return "";
+    try { if (window.GameLog && GameLog.setName) GameLog.setName(n); else set("game.name", n); } catch (e) { set("game.name", n); }
+    var r = recent().filter(function (x) { return x !== n; }); r.unshift(n); set("game.recentNames", JSON.stringify(r.slice(0, 6)));
+    showName(); return n;
+  }
+  function showName() {
+    var n = name(), w = $("g-who"), h = $("g-hi");
+    if (w) w.textContent = n || "مين يلعب؟";
+    if (h) h.textContent = n ? "هلا " + n + " 👋" : "";
+  }
+  var nameCb = null;
+  function askName(cb) {
+    nameCb = cb || null;
+    var box = $("g-recent"); box.innerHTML = "";
+    recent().forEach(function (n) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = n;
+      b.onclick = function () { $("g-name-in").value = n; nameOk(); }; box.appendChild(b);
+    });
+    $("g-name-in").value = name();
+    $("g-name").classList.add("on");
+    setTimeout(function () { try { $("g-name-in").focus(); } catch (e) {} }, 60);
+  }
+  function nameOk() {
+    var n = setName($("g-name-in").value);
+    if (!n) { var i = $("g-name-in"); i.classList.remove("g-shake"); void i.offsetWidth; i.classList.add("g-shake"); return; }
+    $("g-name").classList.remove("on"); sfx.tap();
+    var c = nameCb; nameCb = null; if (c) c();
+  }
+
+  /* الصوت: يُصنع داخل المتصفح، وكتمه محفوظ لكل الألعاب */
+  var muted = get("game.muted") === "1", ac = null;
+  function ctx() {
+    if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+    try { if (ac.state === "suspended") ac.resume(); } catch (e) {}
+    return ac;
+  }
+  function tone(f, d, type, vol, when) {
+    if (muted) return; var c = ctx(); if (!c) return;
+    try {
+      var t = c.currentTime + (when || 0), o = c.createOscillator(), g = c.createGain();
+      o.type = type || "sine"; o.frequency.setValueAtTime(f, t);
+      g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol || .12, t + .01);
+      g.gain.exponentialRampToValueAtTime(.0001, t + d);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + d + .03);
+    } catch (e) {}
+  }
+  var sfx = {
+    tap: function () { tone(560, .07, "triangle", .09); },
+    ok: function () { tone(880, .12, "sine", .12); tone(1175, .16, "sine", .12, .09); },
+    bad: function () { tone(220, .14, "square", .05); tone(170, .18, "square", .05, .12); },
+    win: function () { [523, 659, 784, 1047, 1319].forEach(function (f, i) { tone(f, .26, "triangle", .13, i * .11); }); },
+    lose: function () { [392, 349, 311, 262].forEach(function (f, i) { tone(f, .3, "sine", .1, i * .18); }); },
+    tick: function () { tone(1000, .04, "square", .03); }
+  };
+  function showSound() { var b = $("g-sound"); if (b) b.textContent = muted ? "🔇" : "🔊"; }
+
+  function confetti() {
+    if (reduce) return;
+    try {
+      var cv = $("g-fx"), cx = cv.getContext("2d"), d = window.devicePixelRatio || 1;
+      var W = cv.width = innerWidth * d, H = cv.height = innerHeight * d; cv.style.display = "block";
+      var cols = ["#6a3fd0", "#ff7aa8", "#ffc233", "#22b067", "#3bb8ff"], ps = [], i;
+      for (i = 0; i < 160; i++) ps.push({ x: W / 2 + (Math.random() - .5) * W * .4, y: H * .4, vx: (Math.random() - .5) * 18 * d, vy: (-Math.random() * 17 - 6) * d,
+        s: (7 + Math.random() * 8) * d, r: Math.random() * 6, vr: (Math.random() - .5) * .3, c: cols[i % 5], round: Math.random() < .3 });
+      var st = performance.now();
+      (function fr(t) {
+        cx.clearRect(0, 0, W, H);
+        ps.forEach(function (p) {
+          p.vy += .45 * d; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+          cx.save(); cx.translate(p.x, p.y); cx.rotate(p.r); cx.fillStyle = p.c;
+          if (p.round) { cx.beginPath(); cx.arc(0, 0, p.s / 2.5, 0, 7); cx.fill(); } else cx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2);
+          cx.restore();
+        });
+        if (t - st < 3500) requestAnimationFrame(fr); else { cx.clearRect(0, 0, W, H); cv.style.display = "none"; }
+      })(st);
+    } catch (e) {}
+  }
+
+  /* أفضل نتيجة لكل لعبة ومستوى، محفوظة في الجهاز */
+  function best(key, score, lowerBetter) {
+    var k = "game.best." + key, b = parseFloat(get(k)), isNew = false;
+    if (typeof score === "number" && !isNaN(score) && (isNaN(b) || (lowerBetter ? score < b : score > b))) { b = score; isNew = true; set(k, String(b)); }
+    return { best: isNaN(b) ? null : b, isNew: isNew };
+  }
+
+  /* السجل: لو غاب (بلا خادم) تكمل اللعبة بصمت */
+  function start(g) { try { window.GameLog && GameLog.start(g); } catch (e) {} }
+  function end(g, info) { try { window.GameLog && GameLog.end(g, info); } catch (e) {} }
+
+  function show(id) { $(id).classList.add("on"); }
+  function hide(id) { $(id).classList.remove("on"); }
+
+  /* شاشة النتيجة: o = {emoji, title, sub, score, best, isNew, again, menu} */
+  function result(o) {
+    $("g-res-e").textContent = o.emoji || "🏆";
+    $("g-res-t").textContent = o.title || "";
+    $("g-res-s").textContent = o.sub || "";
+    $("g-res-n").textContent = o.score === undefined ? "" : o.score;
+    var b = $("g-res-b"); b.textContent = "";
+    if (o.isNew) { var s = document.createElement("span"); s.className = "g-new"; s.textContent = "🌟 رقم قياسي جديد!"; b.appendChild(s); }
+    else if (o.best !== undefined && o.best !== null) b.textContent = "أفضل نتيجة لك: " + o.best;
+    var e = $("g-res-e"); e.classList.remove("g-popin"); void e.offsetWidth; e.classList.add("g-popin");
+    $("g-res-again").onclick = function () { hide("g-res"); sfx.tap(); if (o.again) o.again(); };
+    $("g-res-menu").onclick = function () { hide("g-res"); sfx.tap(); if (o.menu) o.menu(); };
+    show("g-res");
+  }
+
+  /* أزرار الاختيار: يحفظ آخر اختيار للعبة */
+  function options(boxId, key, def, onPick) {
+    var btns = [].slice.call($(boxId).querySelectorAll("button")), v = get("game.opt." + key) || def;
+    if (!btns.some(function (b) { return b.dataset.v === v; })) v = def;
+    function mark() { btns.forEach(function (b) { b.classList.toggle("sel", b.dataset.v === v); }); }
+    btns.forEach(function (b) { b.onclick = function () { v = b.dataset.v; set("game.opt." + key, v); mark(); sfx.tap(); if (onPick) onPick(v); }; });
+    mark();
+    return function () { return v; };
+  }
+
+  /* العدد مع المعدود: count(5, "محاولة", "محاولتين", "محاولات") ← "5 محاولات" */
+  function count(n, one, two, few, many) {
+    if (n === 0) return "0 " + (many || one);
+    if (n === 1) return one + " واحدة";
+    if (n === 2) return two;
+    if (n >= 3 && n <= 10) return n + " " + few;
+    return n + " " + (many || one);
+  }
+  /* السحب بالإصبع على عنصر: fn("up"|"down"|"left"|"right") */
+  function swipe(el, fn) {
+    var sx = 0, sy = 0, on = false;
+    el.addEventListener("touchstart", function (e) { var t = e.touches[0]; sx = t.clientX; sy = t.clientY; on = true; }, { passive: true });
+    el.addEventListener("touchmove", function (e) { if (on) e.preventDefault(); }, { passive: false });
+    el.addEventListener("touchend", function (e) {
+      if (!on) return; on = false;
+      var t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 22) return;
+      fn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"));
+    }, { passive: true });
+  }
+  /* أسهم لوحة المفاتيح: fn(اتجاه، مضغوط؟) */
+  function keys(fn) {
+    var M = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
+    document.addEventListener("keydown", function (e) {
+      if (document.querySelector(".g-scr.on") || !M[e.key]) return;
+      e.preventDefault(); fn(M[e.key], true, e.repeat);
+    });
+    document.addEventListener("keyup", function (e) { if (M[e.key]) fn(M[e.key], false); });
+  }
+  /* لون من متغيرات الستايل، حتى ترسم اللوحات بألوان ستايل الألعاب */
+  function css(name, def) {
+    try { var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return v || def; } catch (e) { return def; }
+  }
+  function rnd(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+  function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function shake(el) { el.classList.remove("g-shake"); void el.offsetWidth; el.classList.add("g-shake"); }
+
+  /* زر تحميل اللعبة: على الكمبيوتر فقط، لأن الجوال لا يشغّل الملف المحمَّل */
+  function download() {
+    try {
+      if (location.protocol === "file:") return;
+      var ua = navigator.userAgent || "";
+      var mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
+      var fine = window.matchMedia && window.matchMedia("(pointer: fine)").matches;
+      var box = document.querySelector("#start .g-box");
+      if (mobile || !fine || !box) return;
+      var f = location.pathname.split("/").pop() || "index.html";
+      var a = document.createElement("a"); a.className = "g-dl"; a.href = f; a.download = (document.title || f) + ".html";
+      a.textContent = "⬇️ حمّل اللعبة للكمبيوتر (تعمل بلا إنترنت)";
+      box.appendChild(a);
+    } catch (e) {}
+  }
+
+  function init() {
+    showName(); showSound(); download();
+    $("g-sound").onclick = function () { muted = !muted; set("game.muted", muted ? "1" : "0"); showSound(); if (!muted) sfx.tap(); };
+    $("g-who").onclick = function () { askName(); };
+    $("g-name-ok").onclick = nameOk;
+    $("g-name-in").onkeydown = function (e) { if (e.key === "Enter") nameOk(); };
+    if (!name()) askName();
+  }
+
+  return { $: $, reduce: reduce, name: name, askName: askName, sfx: sfx, tone: tone, ctx: ctx, confetti: confetti, best: best,
+    start: start, end: end, show: show, hide: hide, result: result, options: options, rnd: rnd, count: count, swipe: swipe, keys: keys, css: css, shuffle: shuffle, shake: shake, init: init };
+})();
+</script>
+<script>
+(function () {
+  var $ = G.$;
+  var N = 15, SPEED = { "1": 190, "2": 145, "3": 100 }, MIN = { "1": 120, "2": 85, "3": 62 };
+  var FRUITS = ["🍎", "🍓", "🍌", "🍇", "🍒", "🍉", "🍊"];
+  var V = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }, OPP = { up: "down", down: "up", left: "right", right: "left" };
+  var getLvl = G.options("lvl", "snake", "1");
+  var lvl = "1", snake = [], dir = "right", queue = [], food = null, fruit = "🍎", score = 0, run = 0, alive = false, waiting = true, dead = false;
+  var cv = $("cv"), cx = cv.getContext("2d"), cell = 0;
+
+  function size() {
+    var w = cv.clientWidth || 300, d = window.devicePixelRatio || 1;
+    cv.width = Math.round(w * d); cv.height = cv.width; cell = cv.width / N; draw();
+  }
+  function hud() { $("sScore").textContent = score; var b = G.best("snake." + lvl); $("sBest").textContent = b.best === null ? "-" : b.best; }
+  function place() {
+    var free = [];
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) if (!snake.some(function (s) { return s.x === x && s.y === y; })) free.push({ x: x, y: y });
+    food = free.length ? free[G.rnd(0, free.length - 1)] : null; fruit = FRUITS[G.rnd(0, FRUITS.length - 1)];
+  }
+  function rr(x, y, w, h, r) {
+    cx.beginPath();
+    if (cx.roundRect) cx.roundRect(x, y, w, h, r); else cx.rect(x, y, w, h);
+    cx.fill();
+  }
+  function draw() {
+    if (!cell) return;
+    var bg = G.css("--g-card", "#fff"), alt = G.css("--g-bg", "#fbeef6"), acc = G.css("--g-accent", "#6a3fd0"), accd = G.css("--g-accent-d", "#4a2a9a");
+    cx.fillStyle = bg; cx.fillRect(0, 0, cv.width, cv.height);
+    cx.fillStyle = alt;
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) if ((x + y) % 2) cx.fillRect(x * cell, y * cell, cell, cell);
+    if (food) {
+      cx.font = Math.floor(cell * .82) + "px sans-serif"; cx.textAlign = "center"; cx.textBaseline = "middle";
+      cx.fillText(fruit, food.x * cell + cell / 2, food.y * cell + cell / 2 + cell * .05);
+    }
+    snake.forEach(function (s, i) {
+      cx.fillStyle = dead ? G.css("--g-bad", "#ef4b5f") : (i === 0 ? accd : acc);
+      var p = i === 0 ? cell * .04 : cell * .1;
+      rr(s.x * cell + p, s.y * cell + p, cell - 2 * p, cell - 2 * p, cell * .3);
+    });
+    if (snake.length) {
+      var h = snake[0], v = V[dir], ex = h.x * cell + cell / 2, ey = h.y * cell + cell / 2, o = cell * .2;
+      [[-1, 1], [1, 1]].forEach(function (k) {
+        var px = ex + v[0] * o * .6 + (v[1] ? k[0] * o : 0), py = ey + v[1] * o * .6 + (v[0] ? k[0] * o : 0);
+        cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(px, py, cell * .13, 0, 7); cx.fill();
+        cx.fillStyle = "#222"; cx.beginPath(); cx.arc(px + v[0] * cell * .04, py + v[1] * cell * .04, cell * .065, 0, 7); cx.fill();
+      });
+    }
+  }
+  function newGame() {
+    run++; lvl = getLvl(); var m = Math.floor(N / 2);
+    snake = [{ x: m, y: m }, { x: m - 1, y: m }, { x: m - 2, y: m }];
+    dir = "right"; queue = []; score = 0; alive = true; waiting = true; dead = false;
+    place(); hud(); size();
+    $("msg").textContent = "اضغط سهم أو اسحب على اللوحة عشان تبدأ 👆";
+    G.start("snake");
+  }
+  function turn(d) {
+    if (!alive) return;
+    var last = queue.length ? queue[queue.length - 1] : dir;
+    if (d === OPP[last]) return;
+    if (d !== last && queue.length < 3) queue.push(d);
+    if (waiting) { waiting = false; $("msg").textContent = ""; G.ctx(); var r = run; setTimeout(function () { tick(r); }, 60); }
+  }
+  function tick(r) {
+    if (r !== run || !alive) return;
+    if (queue.length) dir = queue.shift();
+    var h = snake[0], v = V[dir], nx = h.x + v[0], ny = h.y + v[1];
+    if (lvl === "1") { nx = (nx + N) % N; ny = (ny + N) % N; }
+    else if (nx < 0 || ny < 0 || nx >= N || ny >= N) { die("صدمت بالجدار! 🧱"); return; }
+    var eat = food && nx === food.x && ny === food.y, body = eat ? snake : snake.slice(0, -1);
+    if (body.some(function (s) { return s.x === nx && s.y === ny; })) { die("صدمت بنفسك! 😵"); return; }
+    snake.unshift({ x: nx, y: ny });
+    if (!eat) snake.pop();
+    else {
+      score++; G.tone(560 + Math.min(score, 30) * 18, .08, "triangle", .11); hud(); place();
+      if (!food) { draw(); die("ملأت اللوحة كلها! 🤯"); return; }
+    }
+    draw();
+    setTimeout(function () { tick(r); }, Math.max(MIN[lvl], SPEED[lvl] - score * 3));
+  }
+  function die(why) {
+    alive = false; run++; dead = true; draw(); G.sfx.bad(); $("msg").textContent = why;
+    var b = G.best("snake." + lvl, score), n = G.name();
+    G.end("snake", { score: score, level: parseInt(lvl, 10), result: score ? G.count(score, "فاكهة", "فاكهتين", "فواكه") : "0 فاكهة" });
+    setTimeout(function () {
+      if (b.isNew && score > 0) { G.sfx.win(); G.confetti(); } else G.sfx.lose();
+      G.result({
+        emoji: score >= 25 ? "🏆" : score >= 10 ? "🎉" : "🐍",
+        title: n ? "أحسنت يا " + n + "!" : "أحسنت!",
+        sub: why + (score ? " أكلت " + G.count(score, "فاكهة", "فاكهتين", "فواكه") : ""),
+        score: score, best: b.best, isNew: b.isNew && score > 0,
+        again: newGame, menu: function () { G.show("start"); }
+      });
+    }, G.reduce ? 200 : 900);
+  }
+
+  [].slice.call($("dpad").children).forEach(function (b) {
+    b.addEventListener("pointerdown", function (e) { e.preventDefault(); turn(b.dataset.d); });
+  });
+  G.swipe(cv, turn);
+  G.keys(function (d, down) { if (down) turn(d); });
+  window.addEventListener("resize", size);
+  $("menu").onclick = function () { G.sfx.tap(); run++; alive = false; G.show("start"); };
+  $("go").onclick = function () { G.ctx(); G.hide("start"); G.sfx.tap(); newGame(); };
+  window.__game = { state: function () { return { snake: snake, food: food, dir: dir, alive: alive }; } };
+  G.init(); setTimeout(size, 0);
+})();
+</script>
+<script src="/game.js" defer></script>
+</body>
+</html>

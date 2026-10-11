@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--
+  ═══════════ لا تعدّل هذا التعليق ═══════════
+  الملف: games/kalima.html — لعبة «كلمة اليوم» (رمزها في السجل: kalima).
+  - صفحة مستقلة تعمل وحدها بلا خادم وبلا اتصال. لا روابط لبقية الموقع ولا روابط خارجية.
+  - ستايلها كامل داخلها، وهو الستايل الاحتياطي. ستايل games من share يُستدعى قبله فيبقى شكل اللعبة كما هو، ولو غاب لا يتأثر شيء.
+  - السجل: game.js، وسطر عند البداية GameLog.start وسطر عند النهاية GameLog.end. لو غاب السجل تكمل اللعبة بصمت.
+  ═══════════════════════════════════════════
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>كلمة اليوم</title>
+<link rel="stylesheet" href="/styles/games/style.css" onerror="this.remove()">
+<style>
+:root{
+  --bg:#EAF5FF; --surface:#FFFFFF; --ink:#1E2A44; --muted:#5C6B88;
+  --line:#C8D6EA; --line-strong:#8193B3;
+  --correct:#2DBE6C; --correct-shadow:#1E8A4C;
+  --present:#FFC233; --present-shadow:#D9A01A; --present-ink:#3D2A00;
+  --absent:#9AA6B8; --absent-shadow:#7A879B;
+  --key:#FFFFFF; --key-shadow:#B9C8DE;
+  --accent:#7B5CFF; --accent-shadow:#5638D6;
+  --dot:rgba(123,92,255,.08); --overlay:rgba(30,42,68,.55);
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  height:100%;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#141A2E; --surface:#1F2740; --ink:#EEF2FF; --muted:#A3AEC9;
+    --line:#34405F; --line-strong:#56648A;
+    --correct:#2BAE63; --correct-shadow:#1B7A44;
+    --present:#F2B526; --present-shadow:#B88512;
+    --absent:#4A5470; --absent-shadow:#343C55;
+    --key:#2A3352; --key-shadow:#151B30;
+    --accent:#8B70FF; --accent-shadow:#5B40D8;
+    --dot:rgba(139,112,255,.10); --overlay:rgba(5,8,18,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141A2E; --surface:#1F2740; --ink:#EEF2FF; --muted:#A3AEC9;
+  --line:#34405F; --line-strong:#56648A;
+  --correct:#2BAE63; --correct-shadow:#1B7A44;
+  --present:#F2B526; --present-shadow:#B88512;
+  --absent:#4A5470; --absent-shadow:#343C55;
+  --key:#2A3352; --key-shadow:#151B30;
+  --accent:#8B70FF; --accent-shadow:#5B40D8;
+  --dot:rgba(139,112,255,.10); --overlay:rgba(5,8,18,.7);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{
+  background-color:var(--bg);
+  background-image:radial-gradient(var(--dot) 2px, transparent 2.5px);
+  background-size:26px 26px;
+  color:var(--ink);
+  font-family:"Baloo Bhaijaan 2",Tahoma,"Segoe UI",Arial,sans-serif;
+  -webkit-tap-highlight-color:transparent;overflow:hidden;
+}
+button{font-family:inherit}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.app{
+  height:100%;display:flex;flex-direction:column;
+  max-width:500px;margin:0 auto;padding:0 8px;
+  --tile:min(60px, calc((100vw - 56px) / 5), calc((100vh - 372px) / 6 - 6px));
+}
+@supports (height:100dvh){
+  .app{--tile:min(60px, calc((100vw - 56px) / 5), calc((100dvh - 372px) / 6 - 6px))}
+}
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 2px 4px;gap:6px}
+header h1{margin:0;font-size:27px;font-weight:800;line-height:1.1;color:var(--accent);white-space:nowrap}
+header small{display:block;font-size:13px;font-weight:600;color:var(--muted)}
+.icons{display:flex;gap:6px}
+.icon-btn{
+  width:38px;height:38px;border-radius:12px;border:0;cursor:pointer;
+  background:var(--key);color:var(--ink);font-size:18px;
+  box-shadow:0 3px 0 var(--key-shadow);display:flex;align-items:center;justify-content:center;
+}
+.icon-btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--key-shadow)}
+
+.mascot-row{display:flex;align-items:center;gap:10px;padding:4px 2px 2px;min-height:50px}
+.owl{font-size:36px;line-height:1;display:inline-block;flex:none}
+.owl.happy{animation:hop .7s ease}
+.owl.sad{animation:tilt .9s ease}
+.bubble{
+  flex:1;position:relative;background:var(--surface);border:2px solid var(--line);
+  border-radius:16px;padding:5px 12px;font-weight:700;font-size:16px;line-height:1.4;min-height:40px;
+  display:flex;align-items:center;
+}
+.bubble::before{
+  content:"";position:absolute;right:-8px;top:calc(50% - 7px);width:13px;height:13px;
+  background:var(--surface);border-top:2px solid var(--line);border-right:2px solid var(--line);
+  transform:rotate(45deg);
+}
+.bubble.pop{animation:bubblePop .3s ease}
+.hint-btn{
+  flex:none;height:40px;padding:0 12px;border:0;border-radius:14px;cursor:pointer;
+  background:var(--present);color:var(--present-ink);font-weight:800;font-size:15px;
+  box-shadow:0 3px 0 var(--present-shadow);
+}
+.hint-btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--present-shadow)}
+.hint-btn:disabled{opacity:.4;cursor:default;transform:none}
+
+.board{flex:1;display:flex;align-items:center;justify-content:center;padding:6px 0;min-height:0}
+.grid{display:grid;gap:6px}
+.row{display:grid;grid-template-columns:repeat(5,var(--tile));gap:6px}
+.tile{
+  width:var(--tile);height:var(--tile);position:relative;
+  border:3px solid var(--line);border-radius:12px;background:var(--surface);
+  display:flex;align-items:center;justify-content:center;
+  font-size:calc(var(--tile) * .52);font-weight:800;line-height:1;user-select:none;
+}
+.tile.filled{border-color:var(--line-strong);animation:popIn .18s ease-out}
+.tile[data-ghost]:empty::after{content:attr(data-ghost);color:var(--correct);opacity:.35}
+.tile.correct,.tile.present,.tile.absent{border-color:transparent;color:#fff}
+.tile.correct{background:var(--correct);box-shadow:0 4px 0 var(--correct-shadow)}
+.tile.present{background:var(--present);box-shadow:0 4px 0 var(--present-shadow);color:var(--present-ink)}
+.tile.absent{background:var(--absent);box-shadow:0 4px 0 var(--absent-shadow)}
+.tile.flip{animation:flip .5s ease-in-out}
+.row.shake{animation:shake .45s}
+.row.win .tile{animation:dance .6s ease both}
+.row.win .tile:nth-child(2){animation-delay:.08s}
+.row.win .tile:nth-child(3){animation-delay:.16s}
+.row.win .tile:nth-child(4){animation-delay:.24s}
+.row.win .tile:nth-child(5){animation-delay:.32s}
+
+.legend{display:flex;justify-content:center;gap:12px;font-size:13px;font-weight:700;color:var(--muted);padding:2px 0 4px;flex-wrap:wrap}
+.legend i{display:inline-block;width:15px;height:15px;border-radius:5px;vertical-align:-3px;margin-inline-end:4px}
+
+.kb{display:flex;flex-direction:column;gap:6px;padding:4px 0 10px}
+.kb-row{display:flex;gap:4px;justify-content:center}
+.key{
+  flex:1;max-width:42px;height:46px;padding:0;border:0;border-radius:10px;cursor:pointer;
+  background:var(--key);color:var(--ink);font-size:20px;font-weight:800;
+  box-shadow:0 3px 0 var(--key-shadow);touch-action:manipulation;user-select:none;
+}
+.key:active,.key.tap{transform:translateY(2px);box-shadow:0 1px 0 var(--key-shadow)}
+.key.wide{flex:none;width:44%;max-width:170px;font-size:17px}
+.key.enter{background:var(--accent);color:#fff;box-shadow:0 3px 0 var(--accent-shadow)}
+.key.correct{background:var(--correct);color:#fff;box-shadow:0 3px 0 var(--correct-shadow)}
+.key.present{background:var(--present);color:var(--present-ink);box-shadow:0 3px 0 var(--present-shadow)}
+.key.absent{background:var(--absent);color:#fff;box-shadow:0 3px 0 var(--absent-shadow);opacity:.75}
+
+.overlay{
+  position:fixed;inset:0;background:var(--overlay);display:none;
+  align-items:center;justify-content:center;padding:14px;z-index:20;
+}
+.overlay.open{display:flex}
+.overlay.full{background:var(--bg);background-image:radial-gradient(var(--dot) 2px, transparent 2.5px);background-size:26px 26px}
+.modal{
+  background:var(--surface);color:var(--ink);width:100%;max-width:420px;
+  max-height:100%;overflow-y:auto;border-radius:24px;padding:22px 20px;position:relative;
+  box-shadow:0 8px 0 var(--key-shadow);animation:modalIn .3s ease;
+}
+.close{position:absolute;top:12px;left:12px;z-index:2}
+.center{text-align:center}
+
+.btn{
+  display:block;width:100%;height:54px;border:0;border-radius:16px;cursor:pointer;
+  background:var(--accent);color:#fff;font-size:19px;font-weight:800;
+  box-shadow:0 5px 0 var(--accent-shadow);margin-top:12px;
+}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--accent-shadow)}
+.btn.green{background:var(--correct);box-shadow:0 5px 0 var(--correct-shadow)}
+.btn.green:active{box-shadow:0 1px 0 var(--correct-shadow)}
+.btn.soft{background:var(--key);color:var(--ink);box-shadow:0 5px 0 var(--key-shadow)}
+.btn.soft:active{box-shadow:0 1px 0 var(--key-shadow)}
+.btn-row{display:flex;gap:10px}
+.btn-row .btn{flex:1}
+
+/* البداية */
+.welcome{text-align:center;max-width:380px;width:100%}
+.big-owl{font-size:96px;line-height:1;display:inline-block;animation:bob 2.4s ease-in-out infinite}
+.logo{display:flex;justify-content:center;gap:6px;margin:10px 0 2px}
+.logo .tile{--tile:56px;font-size:30px}
+.logo .tile:nth-child(1){animation:flipIn .6s .2s both}
+.logo .tile:nth-child(2){animation:flipIn .6s .4s both}
+.logo .tile:nth-child(3){animation:flipIn .6s .6s both}
+.logo .tile:nth-child(4){animation:flipIn .6s .8s both}
+.welcome h2{font-size:30px;font-weight:800;margin:4px 0 16px;color:var(--accent)}
+.welcome label{display:block;font-size:18px;font-weight:700;margin-bottom:6px}
+.welcome label span{font-size:14px;color:var(--muted);font-weight:600}
+.name-input{
+  width:100%;height:56px;border-radius:16px;border:3px solid var(--line);background:var(--surface);
+  color:var(--ink);font:inherit;font-size:22px;font-weight:700;text-align:center;
+}
+.name-input::placeholder{color:var(--muted);opacity:.6}
+
+/* الشرح */
+.slide{display:none;text-align:center}
+.slide.active{display:block;animation:slideIn .3s ease}
+.slide .emoji{font-size:64px;line-height:1.1}
+.slide h3{font-size:24px;font-weight:800;margin:8px 0 6px}
+.slide p{font-size:18px;line-height:1.6;margin:6px 0;font-weight:600}
+.demo{display:flex;justify-content:center;gap:5px;margin:14px 0 6px}
+.demo .tile{--tile:46px;font-size:24px}
+.color-rule{display:flex;align-items:center;gap:12px;background:var(--bg);border-radius:16px;padding:10px 12px;margin:8px 0;text-align:right}
+.color-rule .tile{--tile:52px;font-size:26px;flex:none}
+.color-rule b{display:block;font-size:20px}
+.color-rule span{font-size:16px;color:var(--muted);font-weight:600}
+.dots{display:flex;justify-content:center;gap:8px;margin:16px 0 4px}
+.dots i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.dots i.on{background:var(--accent);width:26px;border-radius:6px}
+
+/* النتيجة */
+.res-emoji{font-size:80px;line-height:1;display:inline-block;animation:bounceIn .7s ease both}
+.res-title{font-size:30px;font-weight:800;margin:6px 0 0;line-height:1.3}
+.res-sub{font-size:20px;font-weight:700;color:var(--muted);margin:4px 0 0}
+.res-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:110px;height:110px;border-radius:50%;margin:10px 0 4px;
+  background:var(--correct);color:#fff;font-size:72px;font-weight:800;line-height:1;
+  box-shadow:0 7px 0 var(--correct-shadow);animation:bounceIn .7s .25s ease both;
+}
+.res-num.small{font-size:30px;width:auto;height:auto;padding:10px 22px;border-radius:20px}
+.stars{display:flex;justify-content:center;gap:8px;margin:8px 0}
+.stars span{font-size:46px;line-height:1;filter:grayscale(1);opacity:.3}
+.stars span.on{filter:none;opacity:1;animation:starPop .5s ease both}
+.meter{display:flex;justify-content:center;gap:7px;margin:10px 0 2px}
+.meter span{
+  width:36px;height:36px;border-radius:50%;border:3px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;color:var(--muted);
+}
+.meter span.used{background:var(--present);border-color:var(--present);color:var(--present-ink)}
+.meter span.final{background:var(--correct);border-color:var(--correct);color:#fff;transform:scale(1.25)}
+.meter span.miss{background:var(--absent);border-color:var(--absent);color:#fff}
+.meter-cap{font-size:14px;color:var(--muted);font-weight:600;margin-bottom:8px}
+.answer-tiles{display:flex;justify-content:center;gap:5px;margin:10px 0}
+.answer-tiles .tile{--tile:50px;font-size:26px}
+.mini{display:inline-flex;flex-direction:column;gap:4px;margin:6px 0}
+.mini div{display:flex;gap:4px}
+.mini i{width:20px;height:20px;border-radius:5px}
+.hint-note{font-size:15px;font-weight:700;color:var(--present-shadow);margin:2px 0}
+.next{margin-top:12px;font-size:16px;font-weight:600;color:var(--muted)}
+.next b{display:block;font-size:30px;color:var(--ink);font-variant-numeric:tabular-nums;direction:ltr}
+.stats-box{background:var(--bg);border-radius:18px;padding:12px;margin-top:16px}
+.stats-box h4{margin:0 0 8px;font-size:17px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center}
+.stats b{display:block;font-size:26px;line-height:1.2}
+.stats span{font-size:13px;color:var(--muted);font-weight:600}
+.dist{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.dist-row{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:800}
+.dist-bar{background:var(--absent);color:#fff;padding:1px 8px;border-radius:6px;min-width:26px;text-align:left}
+.dist-bar.hit{background:var(--correct)}
+
+.toast{
+  position:fixed;top:calc(env(safe-area-inset-top,0px) + 70px);left:50%;transform:translateX(-50%);
+  background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:14px;
+  font-weight:800;font-size:17px;pointer-events:none;opacity:0;transition:opacity .2s;z-index:50;white-space:nowrap;
+}
+.toast.show{opacity:1}
+#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:60;display:none}
+
+@keyframes popIn{50%{transform:scale(1.15)}}
+@keyframes flip{0%{transform:rotateX(0)}50%{transform:rotateX(90deg)}100%{transform:rotateX(0)}}
+@keyframes flipIn{0%{transform:rotateX(90deg);opacity:0}100%{transform:rotateX(0);opacity:1}}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+@keyframes dance{30%{transform:translateY(-18px) rotate(-6deg)}60%{transform:translateY(2px) rotate(3deg)}}
+@keyframes hop{30%{transform:translateY(-12px) scale(1.15)}60%{transform:translateY(0) scale(.95)}}
+@keyframes tilt{25%{transform:rotate(-14deg)}75%{transform:rotate(10deg)}}
+@keyframes bob{50%{transform:translateY(-10px)}}
+@keyframes bubblePop{0%{transform:scale(.94)}60%{transform:scale(1.03)}}
+@keyframes modalIn{from{transform:translateY(20px) scale(.96);opacity:0}}
+@keyframes slideIn{from{transform:translateX(-20px);opacity:0}}
+@keyframes bounceIn{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+@keyframes starPop{0%{transform:scale(0) rotate(-40deg)}70%{transform:scale(1.3) rotate(10deg)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>كلمة اليوم</h1>
+      <small id="subtitle"></small>
+    </div>
+    <div class="icons">
+      <button class="icon-btn" id="helpBtn" aria-label="طريقة اللعب">❓</button>
+      <button class="icon-btn" id="statsBtn" aria-label="النتيجة">🏆</button>
+      <button class="icon-btn" id="soundBtn" aria-label="الصوت">🔊</button>
+      <button class="icon-btn" id="nameBtn" aria-label="تغيير الاسم">👤</button>
+    </div>
+  </header>
+
+  <div class="mascot-row">
+    <span class="owl" id="owl" aria-hidden="true">🦉</span>
+    <div class="bubble" id="bubble" role="status" aria-live="polite"></div>
+    <button class="hint-btn" id="hintBtn">💡 تلميح</button>
+  </div>
+
+  <main class="board"><div class="grid" id="grid"></div></main>
+
+  <div class="legend">
+    <span><i style="background:var(--correct)"></i>صح بمكانه</span>
+    <span><i style="background:var(--present)"></i>موجود بمكان ثاني</span>
+    <span><i style="background:var(--absent)"></i>مو موجود</span>
+  </div>
+
+  <div class="kb" id="kb"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+<canvas id="fx"></canvas>
+
+<!-- شاشة البداية -->
+<div class="overlay full" id="welcome">
+  <div class="welcome">
+    <div class="big-owl" aria-hidden="true">🦉</div>
+    <div class="logo" aria-hidden="true">
+      <div class="tile correct">ك</div><div class="tile present">ل</div><div class="tile correct">م</div><div class="tile present">ة</div>
+    </div>
+    <h2>كلمة اليوم</h2>
+    <label for="nameInput">وش اسمك؟ <span>(اختياري)</span></label>
+    <input class="name-input" id="nameInput" maxlength="20" placeholder="اكتب اسمك هنا" autocomplete="off">
+    <button class="btn" id="startBtn">يلا نلعب! 🚀</button>
+    <button class="btn soft" id="howBtn">كيف ألعب؟ 🤔</button>
+  </div>
+</div>
+
+<!-- طريقة اللعب -->
+<div class="overlay" id="howto">
+  <div class="modal">
+    <button class="icon-btn close" data-close aria-label="إغلاق">✕</button>
+    <div class="slide active">
+      <div class="emoji">🦉🔒</div>
+      <h3>عندي كلمة سرية!</h3>
+      <p>الكلمة فيها <b>5 حروف</b>. حاول تعرفها.</p>
+      <div class="demo"><div class="tile">؟</div><div class="tile">؟</div><div class="tile">؟</div><div class="tile">؟</div><div class="tile">؟</div></div>
+    </div>
+    <div class="slide">
+      <div class="emoji">⌨️</div>
+      <h3>اكتب أي كلمة</h3>
+      <p>اكتب كلمة من 5 حروف، واضغط زر <b>إدخال</b>.</p>
+      <div class="demo"><div class="tile filled">ز</div><div class="tile filled">ي</div><div class="tile filled">ت</div><div class="tile filled">و</div><div class="tile filled">ن</div></div>
+    </div>
+    <div class="slide">
+      <div class="emoji">🎨</div>
+      <h3>الألوان تساعدك</h3>
+      <div class="color-rule"><div class="tile correct">م</div><div><b>أخضر = ممتاز!</b><span>الحرف صح، وفي مكانه الصح.</span></div></div>
+      <div class="color-rule"><div class="tile present">س</div><div><b>أصفر = قريب!</b><span>الحرف موجود، بس في مكان ثاني.</span></div></div>
+      <div class="color-rule"><div class="tile absent">ج</div><div><b>رمادي = لا</b><span>الحرف مو موجود أبداً.</span></div></div>
+    </div>
+    <div class="slide">
+      <div class="emoji">👀</div>
+      <h3>شوف المثال</h3>
+      <p>الكلمة السرية: <b>مدرسة</b><br>وأنت كتبت: <b>مسجدي</b></p>
+      <div class="demo" id="demoRow"><div class="tile">م</div><div class="tile">س</div><div class="tile">ج</div><div class="tile">د</div><div class="tile">ي</div></div>
+      <p>الميم 🟩 بمكانها. السين والدال 🟨 موجودة بمكان ثاني.</p>
+    </div>
+    <div class="slide">
+      <div class="emoji">💡🏆</div>
+      <h3>جاهز؟</h3>
+      <p>عندك <b>6 محاولات</b>.<br>ولو احتجت مساعدة، اضغط <b>💡 تلميح</b> مرة وحدة.</p>
+    </div>
+    <div class="dots" id="dots"></div>
+    <div class="btn-row">
+      <button class="btn soft" id="prevBtn">السابق</button>
+      <button class="btn" id="nextBtn">التالي</button>
+    </div>
+  </div>
+</div>
+
+<!-- النتيجة -->
+<div class="overlay" id="result">
+  <div class="modal center">
+    <button class="icon-btn close" data-close aria-label="إغلاق">✕</button>
+    <div id="resBody"></div>
+    <div class="stats-box">
+      <h4>📊 إحصائياتك</h4>
+      <div class="stats">
+        <div><b id="sPlayed">0</b><span>لعبت</span></div>
+        <div><b id="sWin">0%</b><span>فزت</span></div>
+        <div><b id="sStreak">0</b><span>🔥 متتالي</span></div>
+        <div><b id="sMax">0</b><span>أفضل سلسلة</span></div>
+      </div>
+      <div class="dist" id="dist"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const RAW = "مدرسة مكتبة سيارة طائرة حديقة مزرعة تفاحة فراشة سحابة مدينة شمسية عصفور زيتون ليمون حاسوب مفتاح مصباح طاولة نافذة بستان فنجان صحراء جزيرة سفينة دراجة كتابة قراءة رسالة عائلة اطفال مساجد منارة سنبلة محراث مطرقة مسمار خزانة وسادة ملعقة حقيبة محفظة كواكب بحيرة فطيرة فاكهة بطاطس طماطم دجاجة غزالة سنجاب تمساح دلفين زرافة نعامة حمامة بطريق بوابة امواج عاصفة مسطرة ممحاة سبورة تلميذ جائزة بطولة سعادة شجاعة صداقة امانة نظافة تعاون خريطة بوصلة مركبة صاروخ روبوت الوان بالون نظارة فستان مروحة ثلاجة غسالة مكنسة اسمنت مزارع سلالم حجارة مرجان اسماك مجداف ارانب اغنام ببغاء طاووس بعوضة جرادة ريحان نعناع ملفوف قرنفل مائدة ابريق مقلاة مكواة سجادة ستارة صابون منشفة فرشاة قنديل فانوس ميزان صندوق جوارب سروال قلادة تلفاز مذياع منظار سماعة عاصمة بركان زلزال اعصار مغارة ينبوع جداول شواطئ بادية كثبان حدائق شوارع منازل عمارة مطبعة ثعبان كناري حيتان سرطان غزلان ثيران فئران حشرات حلزون كتكوت حرباء ضفادع جاموس بطيخة شمامة سبانخ مانجو رمانة جوافة سنابل شوربة عصيدة هريسة كنافة قطايف صنوبر توليب اشجار اغصان اوراق شتلات حافلة شاحنة غواصة قوارب عجلات فرامل ميناء برمجة مبرمج ذاكرة رافعة اسلاك معلمة طالبة كراسة اقلام ارقام هندسة تاريخ رياضة شهادة كرامة عدالة احسان تسامح معرفة ثقافة ابداع ضيافة والدة اخوات ابناء جيران طبيبة ممرضة مهندس مدفاة مخدات شراشف اكواب اطباق مقاعد ابواب دولاب ازرار عباءة عمامة احذية اقمار امطار صواعق انهار فيضان ظهيرة اسبوع دقائق ازهار بنفسج اعشاب يمامة بلابل غربان ثعالب افيال ابقار محارة يعسوب نوارس سلاحف فطائر معمول فلافل عصائر مشروب خميرة عجينة شوفان جرجير بامية يقطين برقوق حلاوة مصانع معادن فولاذ مطحنة مختبر تجربة اجهزة شبكات تطبيق هواتف طابعة صناعة ارباح خسارة تجارة بضاعة اموال عملات دراهم مشروع دراسة اجابة جامعة قصيدة حكاية رواية جريدة اخلاق عزيمة ارادة قناعة سلامة عافية نصيحة اجداد اعمام اخوال اقارب حفيدة فرسان ابطال علماء اطباء خياطة ساحات اسواق متاجر مطاعم مخابز فنادق عيادة ملاعب متاحف ابراج";
+  const WORDS = RAW.split(" ").filter(w => [...w].length === 5);
+  const ROWS = 6, COLS = 5;
+  const KB_ROWS = [
+    ["ض","ص","ث","ق","ف","غ","ع","ه","خ","ح","ج"],
+    ["ش","س","ي","ب","ل","ا","ت","ن","م","ك","ط"],
+    ["ؤ","ء","ئ","ر","ة","و","ز","ظ","د","ذ"]
+  ];
+  const LETTERS = new Set(KB_ROWS.flat());
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const $ = id => document.getElementById(id);
+
+  // ===== اليوم =====
+  const now = new Date();
+  const dayNum = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(2026,0,1)) / 86400000);
+  function gcd(a,b){return b ? gcd(b, a % b) : a}
+  let stride = 37; while (gcd(stride, WORDS.length) !== 1) stride++;
+  const dailyWord = WORDS[((dayNum * stride) % WORDS.length + WORDS.length) % WORDS.length];
+
+  // ===== التخزين =====
+  function load(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch(e){ return d; } }
+  function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+  let stats = Object.assign({played:0, wins:0, streak:0, maxStreak:0, dist:[0,0,0,0,0,0], lastWinDay:null}, load("kalima-stats", {}));
+  let playerName = load("kalima-name", "") || "";
+  // الاسم من بوابة الألعاب: إن وُجد لا يُسأل عنه، وإن كتبه اللاعب هنا يُحفظ لكل الألعاب
+  function sharedName(){ try { return (localStorage.getItem("game.name") || "").trim(); } catch(e){ return ""; } }
+  function saveShared(n){ try { if (n) localStorage.setItem("game.name", n); } catch(e){} }
+  if (sharedName()) playerName = sharedName().slice(0, 20);
+  let muted = !!load("kalima-muted", false);
+  const seenHelp = !!load("kalima-seen2", false);
+
+  // ===== الأصوات (تُصنع داخل المتصفح) =====
+  let actx = null;
+  function ac(){
+    if (!actx){ try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ return null; } }
+    if (actx.state === "suspended") actx.resume();
+    return actx;
+  }
+  function tone(freq, dur, type, vol, when){
+    if (muted) return; const c = ac(); if (!c) return;
+    const t = c.currentTime + (when || 0), o = c.createOscillator(), g = c.createGain();
+    o.type = type || "sine"; o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || .12, t + .01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + .03);
+  }
+  const sfx = {
+    tap(){ tone(560 + Math.random()*120, .07, "triangle", .09); },
+    del(){ tone(300, .07, "triangle", .08); },
+    correct(){ tone(880, .16, "sine", .13); },
+    present(){ tone(660, .16, "sine", .12); },
+    absent(){ tone(300, .12, "sine", .07); },
+    error(){ tone(210, .12, "square", .05); tone(170, .16, "square", .05, .11); },
+    win(){ [523,659,784,1047,1319].forEach((f,i) => tone(f, .28, "triangle", .14, i*.11)); },
+    lose(){ [392,349,311,262].forEach((f,i) => tone(f, .32, "sine", .11, i*.2)); },
+    hint(){ tone(988, .1, "sine", .1); tone(1319, .18, "sine", .1, .09); },
+    star(i){ tone(784 + i*196, .2, "triangle", .13); },
+    whoosh(){ tone(440, .1, "sine", .06); tone(660, .1, "sine", .06, .06); }
+  };
+
+  // ===== قصاصات الاحتفال =====
+  function confetti(){
+    if (reduceMotion) return;
+    const cv = $("fx"), ctx = cv.getContext("2d"), d = window.devicePixelRatio || 1;
+    const W = cv.width = innerWidth * d, H = cv.height = innerHeight * d;
+    cv.style.display = "block";
+    const colors = ["#2DBE6C","#FFC233","#7B5CFF","#FF6B8B","#3BB8FF"];
+    const ps = Array.from({length:170}, () => ({
+      x: W/2 + (Math.random()-.5) * W * .4, y: H * .4,
+      vx: (Math.random()-.5) * 18 * d, vy: (-Math.random()*17 - 6) * d,
+      s: (7 + Math.random()*8) * d, r: Math.random()*6, vr: (Math.random()-.5)*.3,
+      c: colors[Math.floor(Math.random()*colors.length)], round: Math.random() < .3
+    }));
+    const start = performance.now();
+    (function frame(t){
+      ctx.clearRect(0,0,W,H);
+      ps.forEach(p => {
+        p.vy += .45*d; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
+        if (p.round){ ctx.beginPath(); ctx.arc(0,0,p.s/2.5,0,Math.PI*2); ctx.fill(); }
+        else ctx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);
+        ctx.restore();
+      });
+      if (t - start < 3800) requestAnimationFrame(frame);
+      else { ctx.clearRect(0,0,W,H); cv.style.display = "none"; }
+    })(start);
+  }
+
+  // ===== حالة اللعب =====
+  let mode, answer, guesses, results, current, status, busy, hintUsed, hintPos, hintChar;
+  const grid = $("grid"), kb = $("kb"), bubble = $("bubble"), owl = $("owl"), hintBtn = $("hintBtn");
+
+  function say(text, mood){
+    bubble.textContent = text;
+    bubble.classList.remove("pop"); void bubble.offsetWidth; bubble.classList.add("pop");
+    owl.classList.remove("happy","sad"); void owl.offsetWidth;
+    if (mood) owl.classList.add(mood);
+  }
+  function hello(){
+    return (playerName ? "هلا " + playerName + "! " : "هلا! ") + "اكتب أي كلمة من 5 حروف 👇";
+  }
+
+  function buildGrid(){
+    grid.innerHTML = "";
+    for (let r = 0; r < ROWS; r++){
+      const row = document.createElement("div"); row.className = "row";
+      for (let c = 0; c < COLS; c++){ const t = document.createElement("div"); t.className = "tile"; row.appendChild(t); }
+      grid.appendChild(row);
+    }
+  }
+  function buildKb(){
+    kb.innerHTML = "";
+    KB_ROWS.forEach(keys => {
+      const row = document.createElement("div"); row.className = "kb-row";
+      keys.forEach(k => {
+        const b = document.createElement("button"); b.className = "key"; b.textContent = k; b.dataset.key = k;
+        row.appendChild(b);
+      });
+      kb.appendChild(row);
+    });
+    const last = document.createElement("div"); last.className = "kb-row";
+    last.innerHTML = '<button class="key wide enter" data-key="Enter">إدخال ✓</button><button class="key wide" data-key="Backspace">⌫ امسح</button>';
+    kb.appendChild(last);
+  }
+  const rowEl = r => grid.children[r];
+
+  function renderCurrent(){
+    const row = rowEl(guesses.length); if (!row) return;
+    for (let c = 0; c < COLS; c++){
+      const t = row.children[c], ch = current[c] || "";
+      if (t.textContent !== ch){ t.textContent = ch; t.classList.toggle("filled", !!ch); }
+    }
+  }
+  function applyGhost(){
+    if (hintPos < 0) return;
+    for (let r = guesses.length; r < ROWS; r++) rowEl(r).children[hintPos].dataset.ghost = hintChar;
+  }
+
+  function evaluate(guess, ans){
+    const g = [...guess], a = [...ans], res = Array(COLS).fill("absent"), counts = {};
+    a.forEach((ch,i) => { if (g[i] === ch) res[i] = "correct"; else counts[ch] = (counts[ch] || 0) + 1; });
+    g.forEach((ch,i) => { if (res[i] !== "correct" && counts[ch] > 0){ res[i] = "present"; counts[ch]--; } });
+    return res;
+  }
+  const rank = {absent:1, present:2, correct:3};
+  function paintKeys(guess, res){
+    [...guess].forEach((ch,i) => {
+      const k = kb.querySelector('[data-key="'+ch+'"]'); if (!k) return;
+      const cur = ["correct","present","absent"].find(c => k.classList.contains(c));
+      if (!cur || rank[res[i]] > rank[cur]){ k.classList.remove("correct","present","absent"); k.classList.add(res[i]); }
+    });
+  }
+  function paintRow(r, guess, res, animate, done){
+    const row = rowEl(r), step = animate && !reduceMotion ? 280 : 0;
+    [...guess].forEach((ch,i) => {
+      const t = row.children[i]; t.textContent = ch; t.classList.add("filled");
+      setTimeout(() => {
+        if (step) t.classList.add("flip");
+        setTimeout(() => {
+          t.classList.remove("filled"); t.classList.add(res[i]);
+          if (animate) sfx[res[i]]();
+        }, step ? 250 : 0);
+      }, i * step);
+    });
+    setTimeout(done || (() => {}), step ? COLS * step + 280 : 0);
+  }
+
+  let toastTimer;
+  function toast(msg, ms){
+    const el = $("toast"); el.textContent = msg; el.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), ms || 1600);
+  }
+  function shake(){
+    const row = rowEl(guesses.length); row.classList.remove("shake"); void row.offsetWidth; row.classList.add("shake");
+  }
+  function saveState(){
+    if (mode === "daily") save("kalima-state2", {day: dayNum, answer, guesses, status, hintUsed, hintPos, hintChar});
+  }
+
+  function feedback(res){
+    const g = res.filter(x => x === "correct").length, y = res.filter(x => x === "present").length;
+    if (!g && !y) return { text: "ولا حرف! جرّب حروف ثانية 🤔", mood: "sad" };
+    const parts = [];
+    if (g) parts.push("🟩×" + g);
+    if (y) parts.push("🟨×" + y);
+    const cheers = g >= 3 ? ["قربت مرة! 🔥","باقي شوي! 😍"] : ["حلو! 👏","كمّل! 💪","أحسنت! 🌟"];
+    let text = cheers[Math.floor(Math.random()*cheers.length)] + "  " + parts.join("  ");
+    if (guesses.length === ROWS - 1) text += "  آخر محاولة! 🧐";
+    return { text, mood: "happy" };
+  }
+
+  function submit(){
+    if (current.length < COLS){ sfx.error(); shake(); say("ناقصة! لازم 5 حروف ✋", "sad"); return; }
+    const guess = current.join(""), res = evaluate(guess, answer), r = guesses.length;
+    guesses.push(guess); results.push(res); current = []; busy = true;
+    const won = guess === answer, lost = !won && guesses.length === ROWS;
+    if (won) status = "won"; else if (lost) status = "lost";
+    saveState();
+    paintRow(r, guess, res, true, () => {
+      paintKeys(guess, res); busy = false;
+      if (won){
+        rowEl(r).classList.add("win"); sfx.win(); confetti();
+        say("يا سلااام! حلّيتها 🎉", "happy"); finish(true, r);
+      } else if (lost){
+        sfx.lose(); say("ولا يهمك، المرة الجاية تحلها 💪", "sad"); finish(false, r);
+      } else {
+        const f = feedback(res); say(f.text, f.mood);
+      }
+    });
+  }
+
+  function finish(won, r){
+    hintBtn.disabled = true;
+    if (mode === "daily"){
+      stats.played++;
+      if (won){
+        stats.wins++; stats.dist[r]++;
+        stats.streak = stats.lastWinDay === dayNum - 1 ? stats.streak + 1 : 1;
+        stats.lastWinDay = dayNum; stats.maxStreak = Math.max(stats.maxStreak, stats.streak);
+      } else stats.streak = 0;
+      save("kalima-stats", stats);
+    }
+    try { window.GameLog && GameLog.end("kalima", {score: guesses.length, result: (won ? "فوز" : "خسارة") + (mode === "daily" ? "" : " تدريب")}); } catch(e){}
+    setTimeout(() => openResult(true), won ? 1700 : 1500);
+  }
+
+  function useHint(){
+    if (hintUsed || status !== "playing" || busy) return;
+    const known = new Set();
+    results.forEach(r => r.forEach((x,i) => { if (x === "correct") known.add(i); }));
+    const opts = [0,1,2,3,4].filter(i => !known.has(i));
+    if (!opts.length) return;
+    hintPos = opts[Math.floor(Math.random()*opts.length)];
+    hintChar = [...answer][hintPos]; hintUsed = true; hintBtn.disabled = true;
+    applyGhost(); sfx.hint();
+    say("💡 الحرف رقم " + (hintPos+1) + " من اليمين هو «" + hintChar + "»", "happy");
+    saveState();
+  }
+
+  function press(key, btn){
+    if (busy || status !== "playing" || document.querySelector(".overlay.open")) return;
+    if (key === "Enter") return submit();
+    if (key === "Backspace"){ if (current.length){ current.pop(); sfx.del(); renderCurrent(); } return; }
+    if (LETTERS.has(key) && current.length < COLS){ current.push(key); sfx.tap(); renderCurrent(); }
+  }
+  const normalize = ch => ch.replace(/[أإآٱ]/g, "ا").replace(/ى/g, "ي");
+
+  kb.addEventListener("click", e => {
+    const b = e.target.closest("[data-key]"); if (!b) return;
+    press(b.dataset.key, b); b.blur();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT"){ if (e.key === "Enter") startPlaying(); return; }
+    if (e.key === "Escape"){ closeAll(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === "Enter" || e.key === "Backspace"){ e.preventDefault(); press(e.key); return; }
+    if (e.key.length === 1){
+      const k = normalize(e.key);
+      const b = kb.querySelector('[data-key="'+k+'"]');
+      if (b){ b.classList.add("tap"); setTimeout(() => b.classList.remove("tap"), 90); }
+      press(k);
+    }
+  });
+  hintBtn.onclick = useHint;
+
+  // ===== النوافذ =====
+  function open(id){ $(id).classList.add("open"); }
+  function closeAll(){ document.querySelectorAll(".overlay.open").forEach(m => { if (m.id !== "welcome") m.classList.remove("open"); }); }
+  document.querySelectorAll(".overlay").forEach(m => {
+    m.addEventListener("click", e => {
+      if (m.id === "welcome") return;
+      if (e.target === m || e.target.closest("[data-close]")) m.classList.remove("open");
+    });
+  });
+
+  // البداية
+  function startPlaying(auto){
+    playerName = $("nameInput").value.trim().slice(0, 20);
+    save("kalima-name", playerName); saveShared(playerName);
+    if (!auto){ ac(); sfx.whoosh(); }
+    $("welcome").classList.remove("open");
+    if (!load("kalima-seen2", false)){ openHowto(); save("kalima-seen2", true); }
+    if (status === "playing") say(guesses.length ? (playerName ? "رجعت يا " + playerName + "! كمّل 💪" : "كمّل من وين وقفت 💪") : hello(), "happy");
+    else openResult(false);
+  }
+  $("startBtn").onclick = () => startPlaying();
+  $("howBtn").onclick = () => { ac(); openHowto(); };
+  $("nameBtn").onclick = () => { $("nameInput").value = playerName; open("welcome"); };
+
+  // الشرح
+  const slides = [...document.querySelectorAll("#howto .slide")];
+  let slideIdx = 0;
+  $("dots").innerHTML = slides.map(() => "<i></i>").join("");
+  function showSlide(i){
+    slideIdx = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s,j) => s.classList.toggle("active", j === slideIdx));
+    [...$("dots").children].forEach((d,j) => d.classList.toggle("on", j === slideIdx));
+    $("prevBtn").style.visibility = slideIdx ? "visible" : "hidden";
+    $("nextBtn").textContent = slideIdx === slides.length - 1 ? "يلا نلعب! 🚀" : "التالي";
+    if (slideIdx === 3){
+      const tiles = [...$("demoRow").children], res = ["correct","present","absent","present","absent"];
+      tiles.forEach(t => t.className = "tile filled");
+      tiles.forEach((t,i) => setTimeout(() => {
+        if (!reduceMotion) t.classList.add("flip");
+        setTimeout(() => { t.classList.remove("filled"); t.classList.add(res[i]); sfx[res[i]](); }, reduceMotion ? 0 : 250);
+      }, 300 + i * (reduceMotion ? 0 : 300)));
+    }
+  }
+  function openHowto(){ showSlide(0); open("howto"); }
+  $("nextBtn").onclick = () => {
+    sfx.tap();
+    if (slideIdx === slides.length - 1){ $("howto").classList.remove("open"); return; }
+    showSlide(slideIdx + 1);
+  };
+  $("prevBtn").onclick = () => { sfx.tap(); showSlide(slideIdx - 1); };
+  $("helpBtn").onclick = openHowto;
+
+  // الصوت
+  function setSoundIcon(){ $("soundBtn").textContent = muted ? "🔇" : "🔊"; }
+  $("soundBtn").onclick = () => { muted = !muted; save("kalima-muted", muted); setSoundIcon(); if (!muted) sfx.tap(); };
+  setSoundIcon();
+
+  // ===== النتيجة =====
+  function esc(s){ const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+  function starsFor(n){ return n <= 2 ? 3 : n <= 4 ? 2 : 1; }
+  function triesText(n){ return n === 1 ? "من أول محاولة! 🤯" : n === 2 ? "حلّيتها في محاولتين" : "حلّيتها في " + n + " محاولات"; }
+  let cdTimer;
+
+  function openResult(celebrate){
+    const body = $("resBody"), n = guesses.length, nm = playerName ? esc(playerName) : "";
+    let html = "";
+    if (status === "won"){
+      const st = starsFor(n);
+      html += '<div class="res-emoji">🏆</div>';
+      html += '<h2 class="res-title">' + (nm ? "أحسنت يا " + nm + "!" : "أحسنت يا بطل!") + '</h2>';
+      html += '<div class="res-num">' + n + '</div>';
+      html += '<p class="res-sub">' + triesText(n) + '</p>';
+      html += '<div class="stars">' + [0,1,2].map(i => '<span data-i="'+i+'"' + (i < st ? ' class="on" style="animation-delay:' + (.5 + i*.25) + 's"' : '') + '>⭐</span>').join("") + '</div>';
+    } else if (status === "lost"){
+      html += '<div class="res-emoji">💪</div>';
+      html += '<h2 class="res-title">' + (nm ? "ولا يهمك يا " + nm + "!" : "ولا يهمك!") + '</h2>';
+      html += '<p class="res-sub">الكلمة السرية كانت:</p>';
+      html += '<div class="answer-tiles">' + [...answer].map(ch => '<div class="tile correct">' + ch + '</div>').join("") + '</div>';
+      html += '<p class="res-sub">جرّب مرة ثانية، أكيد بتحلها 🌟</p>';
+    } else {
+      html += '<div class="res-emoji">🦉</div>';
+      html += '<h2 class="res-title">' + (nm ? "يلا يا " + nm + "!" : "يلا نلعب!") + '</h2>';
+      html += '<p class="res-sub">ما خلصت الكلمة بعد. عندك ' + (ROWS - n) + ' محاولات باقية.</p>';
+    }
+    if (status !== "playing"){
+      html += '<div class="meter">' + Array.from({length:ROWS}, (_,i) => {
+        let c = "";
+        if (i < n) c = (i === n - 1) ? (status === "won" ? "final" : "miss") : "used";
+        return '<span class="' + c + '">' + (i+1) + '</span>';
+      }).join("") + '</div>';
+      html += '<div class="meter-cap">المحاولات المستخدمة من 6</div>';
+      const map = {correct:"var(--correct)", present:"var(--present)", absent:"var(--absent)"};
+      html += '<div class="mini">' + results.map(r => '<div>' + r.map(x => '<i style="background:' + map[x] + '"></i>').join("") + '</div>').join("") + '</div>';
+      if (hintUsed) html += '<p class="hint-note">💡 استخدمت تلميح</p>';
+      html += '<div class="btn-row"><button class="btn green" id="shareBtn">📤 شارك</button><button class="btn" id="practiceBtn">🎲 كلمة جديدة</button></div>';
+      if (mode === "daily") html += '<div class="next">كلمة اليوم الجاية بعد<b id="countdown">--:--:--</b></div>';
+    }
+    body.innerHTML = html;
+
+    if (celebrate && status === "won" && !muted){
+      for (let i = 0; i < starsFor(n); i++) setTimeout(() => sfx.star(i), (reduceMotion ? 300 : 650) + i * 250);
+    }
+    const sb = $("shareBtn"); if (sb) sb.onclick = share;
+    const pb = $("practiceBtn"); if (pb) pb.onclick = practice;
+
+    $("sPlayed").textContent = stats.played;
+    $("sWin").textContent = (stats.played ? Math.round(stats.wins / stats.played * 100) : 0) + "%";
+    $("sStreak").textContent = stats.lastWinDay !== null && stats.lastWinDay >= dayNum - 1 ? stats.streak : 0;
+    $("sMax").textContent = stats.maxStreak;
+    const max = Math.max(1, ...stats.dist), hit = mode === "daily" && status === "won" ? n - 1 : -1;
+    $("dist").innerHTML = stats.dist.map((v,i) =>
+      '<div class="dist-row"><span>' + (i+1) + '</span><div class="dist-bar' + (i === hit ? ' hit' : '') + '" style="width:' + Math.max(9, v/max*100) + '%">' + v + '</div></div>'
+    ).join("");
+
+    tick(); clearInterval(cdTimer); cdTimer = setInterval(tick, 1000);
+    open("result");
+  }
+  function tick(){
+    const el = $("countdown"); if (!el) return;
+    const n = new Date(), mid = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1);
+    const s = Math.max(0, Math.floor((mid - n) / 1000)), p = x => String(x).padStart(2, "0");
+    el.textContent = p(Math.floor(s/3600)) + ":" + p(Math.floor(s%3600/60)) + ":" + p(s%60);
+  }
+  $("statsBtn").onclick = () => openResult(false);
+
+  // المشاركة
+  function shareText(){
+    const who = playerName || "أنا";
+    const head = "🦉 " + (mode === "daily" ? "كلمة اليوم #" + (dayNum + 1) : "كلمة اليوم (تدريب)");
+    const line = status === "won"
+      ? who + " حلّها في " + guesses.length + "/6 " + "⭐".repeat(starsFor(guesses.length))
+      : who + " ما لحق هالمرة X/6";
+    const map = {correct:"🟩", present:"🟨", absent:"⬜"};
+    return head + "\n" + line + (hintUsed ? " 💡" : "") + "\n\n" + results.map(r => "\u200F" + r.map(x => map[x]).join("")).join("\n");
+  }
+  async function copy(text){
+    try { await navigator.clipboard.writeText(text); return true; } catch(e){}
+    try {
+      const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); const ok = document.execCommand("copy"); ta.remove(); return ok;
+    } catch(e){ return false; }
+  }
+  async function share(){
+    const text = shareText();
+    if (navigator.share){
+      try { await navigator.share({text}); return; } catch(e){ if (e && e.name === "AbortError") return; }
+    }
+    toast(await copy(text) ? "✅ تم نسخ النتيجة، الصقها بالواتساب" : "تعذّر النسخ", 2200);
+  }
+
+  function practice(){
+    closeAll(); clearInterval(cdTimer); sfx.whoosh();
+    let w; do { w = WORDS[Math.floor(Math.random() * WORDS.length)]; } while (w === answer && WORDS.length > 1);
+    newGame("practice", w);
+    try { window.GameLog && GameLog.start("kalima"); } catch(e){}
+    say("🎲 كلمة جديدة! " + (playerName ? "يلا يا " + playerName : "يلا") + " 👇", "happy");
+  }
+
+  function newGame(m, word){
+    mode = m; answer = word; guesses = []; results = []; current = [];
+    status = "playing"; busy = false; hintUsed = false; hintPos = -1; hintChar = "";
+    hintBtn.disabled = false;
+    buildGrid(); buildKb();
+    $("subtitle").textContent = mode === "daily" ? "رقم " + (dayNum + 1) : "🎲 تدريب";
+  }
+
+  // ===== التشغيل =====
+  newGame("daily", dailyWord);
+  const saved = load("kalima-state2", null);
+  if (saved && saved.day === dayNum && saved.answer === dailyWord && Array.isArray(saved.guesses)){
+    saved.guesses.forEach(g => {
+      const res = evaluate(g, answer); guesses.push(g); results.push(res);
+      paintRow(guesses.length - 1, g, res, false); paintKeys(g, res);
+    });
+    status = saved.status || "playing";
+    hintUsed = !!saved.hintUsed; hintPos = typeof saved.hintPos === "number" ? saved.hintPos : -1; hintChar = saved.hintChar || "";
+    if (hintUsed){ hintBtn.disabled = true; applyGhost(); }
+    if (status !== "playing") hintBtn.disabled = true;
+  }
+  if (status === "playing" && !guesses.length){
+    // game.js يُحمَّل بعد الصفحة (defer)، فننتظره ثم نسجل البداية
+    window.addEventListener("load", () => { try { window.GameLog && GameLog.start("kalima"); } catch(e){} });
+  }
+  say(hello());
+  $("nameInput").value = playerName;
+  if (sharedName()) startPlaying(true); else open("welcome");
+})();
+</script>
+<script src="/game.js" defer></script>
+</body>
+</html>

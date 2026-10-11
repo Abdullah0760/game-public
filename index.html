@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!--
+  ═══════════ لا تعدّل هذا التعليق ═══════════
+  الملف: games/index.html — بوابة الألعاب (الصفحة الأولى على المنفذ 8092).
+  - عالم مستقل: لا روابط لبقية الموقع، ولا روابط خارجية، ولا إعلانات، ولا رابط رجوع.
+  - الستايل الاحتياطي داخل الصفحة، ثم ستايل games من share (لو غاب تبقى الصفحة كما هي).
+  - قائمة الألعاب من games.json. والاسم يختاره اللاعب ويُحفظ في جهازه (game.js).
+  - data-no-site-header: علامة لـ functions.js (عند بنائه) ألا يضع هيدر الموقع وروابطه هنا.
+  ═══════════════════════════════════════════
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#6a3fd0">
+<title>الألعاب</title>
+<style id="fallback">
+  :root{--bg:#fbeef6;--bg2:#efe6ff;--ink:#3a2463;--sub:#7a6a98;--card:#fff;--line:#eadff7;--accent:#6a3fd0;--accent2:#ff7aa8}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{min-height:100vh;font-family:Tahoma,"Segoe UI",Arial,sans-serif;color:var(--ink);
+       background:linear-gradient(180deg,var(--bg),var(--bg2));background-attachment:fixed}
+  .wrap{max-width:900px;margin:0 auto;padding:18px 16px 40px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  header h1{margin:0;font-size:30px;text-shadow:0 3px 0 rgba(255,255,255,.7)}
+  .who{display:flex;align-items:center;gap:8px;background:var(--card);border:2px solid var(--line);
+       border-radius:30px;padding:6px 8px 6px 14px;font-size:17px;cursor:pointer}
+  .who .av{width:34px;height:34px;border-radius:50%;background:var(--accent2);color:#fff;display:grid;place-items:center;font-size:18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+  .game{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;text-decoration:none;color:var(--ink);
+        background:var(--card);border:2px solid var(--line);border-radius:22px;padding:18px 10px;
+        box-shadow:0 5px 0 var(--line);transition:transform .12s}
+  .game:active{transform:translateY(3px);box-shadow:0 2px 0 var(--line)}
+  .game .ic{font-size:52px;line-height:1.1}
+  .game b{font-size:19px}
+  .game span{font-size:14px;color:var(--sub)}
+  .empty{text-align:center;background:var(--card);border-radius:22px;padding:34px 16px;border:2px dashed var(--line);font-size:19px}
+  .empty .ic{font-size:56px}
+  .overlay{position:fixed;inset:0;background:rgba(40,20,70,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+  .overlay.on{display:flex}
+  .modal{background:var(--card);border-radius:24px;padding:22px 18px;width:100%;max-width:380px;text-align:center}
+  .modal h2{margin:4px 0 6px;font-size:24px}
+  .modal p{margin:0 0 14px;color:var(--sub)}
+  .modal input{width:100%;font:inherit;font-size:22px;text-align:center;padding:12px;border:2px solid var(--line);border-radius:16px;margin-bottom:12px}
+  .btn{font:inherit;font-size:20px;border:0;border-radius:16px;padding:12px 20px;background:var(--accent);color:#fff;cursor:pointer;width:100%;box-shadow:0 4px 0 #4a2a9a}
+  .btn:active{transform:translateY(2px);box-shadow:0 2px 0 #4a2a9a}
+  .names{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:12px}
+  .names button{font:inherit;font-size:16px;border:2px solid var(--line);background:#faf7ff;border-radius:20px;padding:6px 14px;cursor:pointer;color:var(--ink)}
+</style>
+<link rel="stylesheet" href="/styles/games/style.css" onerror="this.remove()">
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="الألعاب"><script>if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(function(){});</script><!-- سطر النسخة العامة: الحفظ في الجوال (tools/public_copy.py) -->
+</head>
+<body data-no-site-header="1">
+<div class="wrap">
+  <header>
+    <h1>🎮 الألعاب</h1>
+    <div class="who" id="who" role="button" tabindex="0" aria-label="تغيير اللاعب">
+      <span id="whoName">مين يلعب؟</span><span class="av">🙂</span>
+    </div>
+  </header>
+  <div class="grid" id="list"></div>
+</div>
+
+<div class="overlay" id="ask" role="dialog" aria-modal="true" aria-labelledby="askT">
+  <div class="modal">
+    <div style="font-size:52px">👋</div>
+    <h2 id="askT">مين يلعب؟</h2>
+    <p>اكتب اسمك عشان تنحسب نتيجتك</p>
+    <div class="names" id="recent"></div>
+    <input id="nameIn" maxlength="30" autocomplete="off" placeholder="اسمك">
+    <button class="btn" id="nameOk">يلا نلعب 🚀</button>
+  </div>
+</div>
+
+<script src="/game.js"></script>
+<script id="page-script">
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var GL = window.GameLog;
+  function get(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }
+  function set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  function showName() { $("whoName").textContent = (GL && GL.name()) || "مين يلعب؟"; }
+  function ask() {
+    var rec = get("game.recentNames") || [];
+    var box = $("recent"); box.innerHTML = "";
+    rec.forEach(function (n) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = n;
+      b.onclick = function () { save(n); }; box.appendChild(b);
+    });
+    $("nameIn").value = "";
+    $("ask").classList.add("on");
+    setTimeout(function () { $("nameIn").focus(); }, 50);
+  }
+  function save(n) {
+    if (!GL) { $("ask").classList.remove("on"); return; }
+    n = GL.setName(n);
+    if (!n) { $("nameIn").focus(); return; }
+    var rec = (get("game.recentNames") || []).filter(function (x) { return x !== n; });
+    rec.unshift(n); set("game.recentNames", rec.slice(0, 6));
+    $("ask").classList.remove("on"); showName();
+  }
+  $("nameOk").onclick = function () { save($("nameIn").value); };
+  $("nameIn").onkeydown = function (e) { if (e.key === "Enter") save(this.value); };
+  $("who").onclick = ask;
+  $("who").onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") ask(); };
+
+  function render(games) {
+    var list = $("list"); list.innerHTML = "";
+    games = (games || []).filter(function (g) { return g && !g.hidden && g.url; });
+    if (!games.length) {
+      list.style.display = "block";
+      list.innerHTML = '<div class="empty"><div class="ic">🎁</div>الألعاب جاية قريب!</div>';
+      return;
+    }
+    games.forEach(function (g) {
+      var a = document.createElement("a"); a.className = "game"; a.href = g.url;
+      var ic = document.createElement("div"); ic.className = "ic"; ic.textContent = g.icon || "🎲";
+      var b = document.createElement("b"); b.textContent = g.name || g.id;
+      a.appendChild(ic); a.appendChild(b);
+      if (g.desc) { var s = document.createElement("span"); s.textContent = g.desc; a.appendChild(s); }
+      list.appendChild(a);
+    });
+  }
+  var cached = get("game.list");
+  if (cached) render(cached);
+  fetch("games.json", { cache: "no-cache" }).then(function (r) { return r.json(); })
+    .then(function (d) { set("game.list", d.games || []); render(d.games); })
+    .catch(function () { if (!cached) render([]); });
+
+  showName();
+  if (GL && !GL.name()) ask();
+})();
+</script>
+<script src="/functions.js" defer onerror="this.remove()"></script>
+</body>
+</html>
