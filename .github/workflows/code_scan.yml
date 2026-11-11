@@ -1,6 +1,7 @@
-# فحص الأسرار وحده (share 1.16.0، فحص الكود ٢، «اوك» أبو مشاري 11/11/2026): يستدعي سير العمل المشترك في share بـ secrets_only،
-# فيعمل Gitleaks على تاريخ Git كله، وترسل النتيجة منقّاة (بلا السر نفسه) إلى نظام الموقع ← 🛡️ الأمان ← 🧪 فحص الكود.
-# هذا المستودع ليس تطبيقاً: مسجل في share/apps.json تحت scan_repos. متى: كل رفع، وأسبوعياً فجر الجمعة، ويدوياً من Actions.
+# فحص الأسرار وحده (share 1.16.1، فحص الكود ٢، «اوك» أبو مشاري 11/11/2026). المستودع عام، والعام لا يستدعي سير عمل share الخاص،
+# فالخطوات هنا: Gitleaks على تاريخ Git كله ثم إرسال النتيجة منقّاة (المكان ورقم النسخة فقط، بلا السر) إلى نظام الموقع ← 🛡️ الأمان ← 🧪 فحص الكود
+# برمز موقّع من GitHub (OIDC) بلا أي سر. والخادم يقبله لهذا المستودع وحده (scan_repos في share/apps.json بـ "self": true).
+# متى: كل رفع، وأسبوعياً فجر الجمعة، ويدوياً من Actions. لا علاقة له بالألعاب نفسها.
 name: code_scan
 on:
   push:
@@ -13,6 +14,68 @@ permissions:
   id-token: write
 jobs:
   scan:
-    uses: Abdullah0760/share/.github/workflows/code_scan.yml@main
-    with:
-      secrets_only: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SITE: alamricenter.org
+      AUDIENCE: alamricenter-code-scan
+      GITLEAKS_VERSION: "8.30.1"
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803   # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks
+        continue-on-error: true
+        run: |
+          T="$RUNNER_TEMP/cs"; mkdir -p "$T"
+          url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          if ! curl -sSfL --retry 2 -o "$T/gl.tgz" "$url" || ! echo "${GITLEAKS_SHA256}  $T/gl.tgz" | sha256sum -c --quiet; then
+            echo download > "$T/gitleaks.err"; exit 0
+          fi
+          mkdir -p "$T/gl" && tar xzf "$T/gl.tgz" -C "$T/gl" gitleaks
+          rc=0; timeout 240 "$T/gl/gitleaks" git --no-banner --redact --log-level warn --report-format json --report-path "$T/gitleaks.json" . > "$T/gitleaks.out" 2>&1 || rc=$?
+          echo $rc > "$T/gitleaks.rc"
+      - name: clean and send (counts only in this log)
+        if: ${{ !cancelled() }}
+        env:
+          EVENT: ${{ github.event_name }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          python3 - <<'PY'
+          import json, os, time, urllib.error, urllib.request
+          T = os.path.join(os.environ["RUNNER_TEMP"], "cs")
+          W = os.environ["GITHUB_WORKSPACE"]
+          try:
+              d = json.load(open(os.path.join(T, "gitleaks.json"), encoding="utf-8"))
+          except (OSError, ValueError):
+              d = None
+          rc = (open(os.path.join(T, "gitleaks.rc")).read().strip() if os.path.exists(os.path.join(T, "gitleaks.rc")) else "")
+          ok = isinstance(d, list)
+          why = "" if ok else ("تعذر تنزيل الأداة أو التحقق منها" if os.path.exists(os.path.join(T, "gitleaks.err"))
+                               else "انتهى الوقت" if rc == "124" else "الأداة لم تعمل")
+          rel = lambda p: str(p or "").replace(W + "/", "").lstrip("./")[:200]
+          out = [{"rule": str(r.get("RuleID", ""))[:60], "file": rel(r.get("File")), "line": int(r.get("StartLine") or 0),
+                  "commit": str(r.get("Commit", ""))[:40], "date": str(r.get("Date", ""))[:20]} for r in d or []]
+          tools = {"gitleaks": {"state": "ok" if ok else "failed", "reason": why, "findings": out[:300], "total": len(out),
+                                "version": os.environ["GITLEAKS_VERSION"]}}
+          print(f"gitleaks: {tools['gitleaks']['state']} {why} findings={len(out)}")
+          payload = {"v": 1, "sha": os.environ["GITHUB_SHA"], "version": "", "event": os.environ["EVENT"],
+                     "at": time.strftime("%Y-%m-%d %H:%M", time.gmtime(time.time() + 3 * 3600)),
+                     "run_id": os.environ["RUN_ID"], "run_number": int(os.environ["RUN_NUMBER"]),
+                     "run_attempt": int(os.environ["RUN_ATTEMPT"]), "tools": tools}
+          url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=" + os.environ["AUDIENCE"]
+          req = urllib.request.Request(url, headers={"Authorization": "bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]})
+          token = json.loads(urllib.request.urlopen(req, timeout=20).read())["value"]
+          req = urllib.request.Request("https://" + os.environ["SITE"] + "/system/code_scan", data=json.dumps(payload, ensure_ascii=False).encode(),
+                                       method="POST", headers={"Authorization": "Bearer " + token, "Content-Type": "application/json; charset=utf-8"})
+          try:
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  print("sent:", r.status, r.read(200).decode("utf-8", "replace"))
+          except urllib.error.HTTPError as e:
+              print("not accepted:", e.code, e.read(200).decode("utf-8", "replace"))
+              raise SystemExit(1)
+          PY
