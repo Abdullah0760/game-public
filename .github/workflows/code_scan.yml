@@ -1,0 +1,18 @@
+# فحص الأسرار وحده (share 1.16.0، فحص الكود ٢، «اوك» أبو مشاري 11/11/2026): يستدعي سير العمل المشترك في share بـ secrets_only،
+# فيعمل Gitleaks على تاريخ Git كله، وترسل النتيجة منقّاة (بلا السر نفسه) إلى نظام الموقع ← 🛡️ الأمان ← 🧪 فحص الكود.
+# هذا المستودع ليس تطبيقاً: مسجل في share/apps.json تحت scan_repos. متى: كل رفع، وأسبوعياً فجر الجمعة، ويدوياً من Actions.
+name: code_scan
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "52 23 * * 4"   # الخميس 23:52 UTC = الجمعة 02:52 بتوقيت الرياض
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  scan:
+    uses: Abdullah0760/share/.github/workflows/code_scan.yml@main
+    with:
+      secrets_only: true
